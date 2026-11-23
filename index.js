@@ -6,7 +6,7 @@ const { createLogger } = require('./logger');
 const { createState } = require('./state');
 const { createRateLimitedClient } = require('./rate-limit');
 
-const POSTS_PER_DAY = 125;
+const POSTS_PER_DAY = 220;
 const POST_INTERVAL = 24 * 60 * 60 * 1000 / POSTS_PER_DAY;
 const QUEUE_INTERVAL = 10 * 60 * 1000;
 
