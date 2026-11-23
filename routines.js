@@ -65,8 +65,8 @@ function createRoutines(client, blog, { delay = wait, logger = console } = {}) {
       await changeState(client, blog, post, 'published');
       drafts.shift();
     } catch (error) {
-      drafts = [];
-      throw error;
+      drafts.shift();
+      throw new Error(`Failed to publish draft ${postId(post)}: ${error.message}`, { cause: error });
     }
     logger.log(`Published draft ${postId(post)}.`);
   }
@@ -74,13 +74,9 @@ function createRoutines(client, blog, { delay = wait, logger = console } = {}) {
   async function draftFirstQueuePage() {
     const { posts } = await client.blogQueue(blog);
     let moved = 0;
-    try {
-      for (const post of posts) {
-        await changeState(client, blog, post, 'draft');
-        moved++;
-      }
-    } finally {
-      if (moved) drafts = [];
+    for (const post of posts) {
+      await changeState(client, blog, post, 'draft');
+      moved++;
     }
     logger.log(`Moved ${moved} queued posts to drafts.`);
   }

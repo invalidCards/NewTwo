@@ -20,7 +20,7 @@ The scheduler loads `.env` from the current working directory at startup. Enviro
 
 Log messages begin with an ISO 8601 timestamp in UTC (the `Z` suffix). Routine completion messages are timestamped when the routine finishes.
 
-To find the oldest drafts, the scheduler scans all draft pages, but retains only the last full page and final partial page in memory. A large draft collection can therefore take time to scan even though the cache stays small.
+To find the oldest drafts, the scheduler scans all draft pages, but retains only the last full page and final partial page in memory. It publishes from that cache until it is empty, retaining it when queued posts are moved to the top of drafts. If a post fails to publish, the scheduler skips it and tries the next cached post at the next interval; the failed post can be picked up again in a later scan. A large draft collection can therefore take time to scan even though the cache stays small.
 
 ## Running with PM2
 

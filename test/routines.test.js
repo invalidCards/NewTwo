@@ -62,6 +62,24 @@ test('handles empty drafts and detects repeated pagination cursors', async () =>
   await assert.rejects(looping.publishOldestDraft(), /repeated cursor/);
 });
 
+test('a failed publish skips that post without reloading the remaining drafts', async () => {
+  let scans = 0;
+  const attempted = [];
+  const client = {
+    async blogDrafts() { scans++; return { posts: [draft(3), draft(2), draft(1)] }; },
+    async getRequest() { return { content: [] }; },
+    async editPost(blog, id) {
+      attempted.push(id);
+      if (id === '1') throw new Error('failed');
+    },
+  };
+  const routines = createRoutines(client, 'blog', { delay: async () => {}, logger: silent });
+  await assert.rejects(routines.publishOldestDraft(), /failed/);
+  await routines.publishOldestDraft();
+  assert.equal(scans, 1);
+  assert.deepEqual(attempted, ['1', '2']);
+});
+
 test('NPF edit passes fetched content and reblog details through the real v5 client', async () => {
   const client = tumblr.createClient({ consumer_key: 'key' });
   const content = [{ type: 'text', text: 'hello' }];
@@ -93,19 +111,24 @@ test('does not edit NPF posts if editable content is missing', async () => {
   await assert.rejects(changeState(client, 'blog', { id_string: '1', is_blocks_post_format: true }, 'published'), /no editable content/);
 });
 
-test('queue moves invalidate cached drafts even if a later edit fails', async () => {
+test('queue moves preserve the oldest cached drafts even if a later edit fails', async () => {
   let scans = 0;
+  const published = [];
   const client = {
     async blogDrafts() { scans++; return { posts: [draft(2), draft(1)] }; },
     async blogQueue() { return { posts: [draft(3), draft(4)] }; },
     async getRequest() { return { content: [] }; },
-    async editPost(blog, id) { if (id === '4') throw new Error('failed'); },
+    async editPost(blog, id, options) {
+      if (id === '4') throw new Error('failed');
+      if (options.state === 'published') published.push(id);
+    },
   };
   const routines = createRoutines(client, 'blog', { delay: async () => {}, logger: silent });
   await routines.publishOldestDraft();
   await assert.rejects(routines.draftFirstQueuePage(), /failed/);
   await routines.publishOldestDraft();
-  assert.equal(scans, 2);
+  assert.equal(scans, 1);
+  assert.deepEqual(published, ['1', '2']);
 });
 
 test('scheduled tasks log errors and share a lock to avoid overlapping', async () => {
