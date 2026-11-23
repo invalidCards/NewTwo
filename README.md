@@ -18,6 +18,10 @@ npm start
 
 The scheduler loads `.env` from the current working directory at startup. Environment variables already set by the host take precedence. Keep credentials out of source control. Use a blog hostname or another Tumblr blog identifier for `TUMBLR_BLOG`. The program logs failed requests and retries on the next scheduled interval. It uses Tumblr's NPF editing endpoint. Tumblr does not support editing legacy non-text posts through NPF, so the program logs an error for those posts; they must be handled separately.
 
+Log messages begin with an ISO 8601 timestamp in UTC (the `Z` suffix). Routine completion messages are timestamped when the routine finishes.
+
+To find the oldest drafts, the scheduler scans all draft pages, but retains only the last full page and final partial page in memory. A large draft collection can therefore take time to scan even though the cache stays small.
+
 ## Running with PM2
 
 After completing the setup above, install PM2 and start one scheduler process from the project directory:

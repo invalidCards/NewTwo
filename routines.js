@@ -34,14 +34,19 @@ function createRoutines(client, blog, { delay = wait, logger = console } = {}) {
   let drafts = [];
 
   async function loadDrafts() {
-    const found = [];
+    let found = [];
     const cursors = new Set();
     let before;
     while (true) {
       await delay(100);
       const { posts } = await client.blogDrafts(blog, before ? { before_id: before } : {});
-      found.push(...posts);
-      if (posts.length < DRAFT_PAGE_SIZE) break;
+      if (posts.length < DRAFT_PAGE_SIZE) {
+        found.push(...posts);
+        break;
+      }
+      // Each full page is older than the previous one. Retain only the most
+      // recently fetched full page and the final partial page, rather than every draft.
+      found = posts;
       before = postId(posts[posts.length - 1]);
       if (cursors.has(before)) throw new Error(`Draft pagination repeated cursor ${before}`);
       cursors.add(before);
@@ -86,7 +91,7 @@ function createRoutines(client, blog, { delay = wait, logger = console } = {}) {
 function scheduleRoutine(name, routine, interval, { logger = console, setTimer = setInterval, lock = { running: false } } = {}) {
   return setTimer(async () => {
     if (lock.running) {
-      logger.warn(`${name} is still running; skipping this interval.`);
+      logger.warn(`${name} skipped: a scheduled routine is still running.`);
       return;
     }
     lock.running = true;

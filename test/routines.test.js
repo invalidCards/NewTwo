@@ -29,6 +29,31 @@ test('walks every draft page and publishes oldest first using string IDs', async
   ]);
 });
 
+for (const [total, retained] of [[65, 25], [40, 20]]) {
+  test(`retains the oldest drafts from ${total} posts and reloads when exhausted`, async () => {
+    let drafts = Array.from({ length: total }, (_, i) => draft(total - i));
+    let scans = 0;
+    const published = [];
+    const client = {
+      async blogDrafts(blog, options) {
+        if (!options.before_id) scans++;
+        return { posts: drafts.filter((post) => !options.before_id || Number(post.id_string) < Number(options.before_id)).slice(0, 20) };
+      },
+      async getRequest() { return { content: [] }; },
+      async editPost(blog, id) {
+        published.push(Number(id));
+        drafts = drafts.filter((post) => post.id_string !== id);
+      },
+    };
+    const routines = createRoutines(client, 'blog', { delay: async () => {}, logger: silent });
+    for (let i = 0; i < retained; i++) await routines.publishOldestDraft();
+    assert.equal(scans, 1);
+    await routines.publishOldestDraft();
+    assert.equal(scans, 2);
+    assert.deepEqual(published, Array.from({ length: retained + 1 }, (_, i) => i + 1));
+  });
+}
+
 test('handles empty drafts and detects repeated pagination cursors', async () => {
   const empty = createRoutines({ blogDrafts: async () => ({ posts: [] }) }, 'blog', { delay: async () => {}, logger: silent });
   await empty.publishOldestDraft();

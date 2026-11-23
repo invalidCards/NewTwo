@@ -2,6 +2,7 @@
 
 const tumblr = require('tumblr.js');
 const { createRoutines, scheduleRoutine } = require('./routines');
+const { createLogger } = require('./logger');
 
 const POSTS_PER_DAY = 125;
 const POST_INTERVAL = 24 * 60 * 60 * 1000 / POSTS_PER_DAY;
@@ -12,7 +13,7 @@ function loadEnvironment(env = process.env, path = '.env') {
   if (error && error.code !== 'ENOENT') throw error;
 }
 
-function main(env = process.env) {
+function main(env = process.env, logger = createLogger()) {
   const variables = {
     consumer_key: 'TUMBLR_CONSUMER_KEY',
     consumer_secret: 'TUMBLR_CONSUMER_SECRET',
@@ -27,19 +28,20 @@ function main(env = process.env) {
   );
   const blog = env.TUMBLR_BLOG || 'invalidcards.tumblr.com';
   const client = tumblr.createClient(credentials);
-  const routines = createRoutines(client, blog);
+  const routines = createRoutines(client, blog, { logger });
   const lock = { running: false };
-  scheduleRoutine('Publish draft', routines.publishOldestDraft, POST_INTERVAL, { lock });
-  scheduleRoutine('Move queue to drafts', routines.draftFirstQueuePage, QUEUE_INTERVAL, { lock });
-  console.log(`Started for ${blog}: publishing every ${POST_INTERVAL / 60000} minutes and checking the queue every 10 minutes.`);
+  scheduleRoutine('Publish draft', routines.publishOldestDraft, POST_INTERVAL, { lock, logger });
+  scheduleRoutine('Move queue to drafts', routines.draftFirstQueuePage, QUEUE_INTERVAL, { lock, logger });
+  logger.log(`Started for ${blog}: publishing every ${POST_INTERVAL / 60000} minutes and checking the queue every 10 minutes.`);
 }
 
 if (require.main === module) {
+  const logger = createLogger();
   try {
     loadEnvironment();
-    main();
+    main(process.env, logger);
   } catch (error) {
-    console.error(error.message);
+    logger.error(error.message);
     process.exitCode = 1;
   }
 }
