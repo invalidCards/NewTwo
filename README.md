@@ -20,7 +20,11 @@ The scheduler loads `.env` from the current working directory at startup. Enviro
 
 Log messages begin with an ISO 8601 timestamp in UTC (the `Z` suffix). Routine completion messages are timestamped when the routine finishes.
 
-To find the oldest drafts, the scheduler scans all draft pages, but retains only the last full page and final partial page in memory. It publishes from that cache until it is empty, retaining it when queued posts are moved to the top of drafts. If a post fails to publish, the scheduler skips it and tries the next cached post at the next interval; the failed post can be picked up again in a later scan. A large draft collection can therefore take time to scan even though the cache stays small.
+To find the oldest drafts, the scheduler scans all draft pages and saves a compact index of IDs and editing metadata in `.newtwo-state.json` in the working directory. The scan is checkpointed after each page and resumes after a restart or failed request. Once the scan is complete, publishing works through the index, and a new scan begins only after the index is exhausted. Posts added after a scan begins are picked up on a later scan. Keep this state file when deploying updates and include it in backups; do not run multiple instances for the same blog.
+
+Missing posts and posts no longer in the draft state are skipped immediately. If another post-specific error occurs, the scheduler logs it, skips that post and tries the next one on the next publishing interval. A skipped post that remains a draft can be indexed again on a later scan. The scheduler requires Tumblr to report the post's current state before publishing; if the state is missing, it leaves the post in the index and logs an error instead of editing it.
+
+When Tumblr returns a 429, the scheduler pauses all its API requests, preserves the scan position or current post, and resumes on a scheduled check after the pause. It uses `Retry-After` when supplied; otherwise it starts with a one-hour pause and increases it on consecutive limits, up to 24 hours. The pause is also saved across restarts. Other applications using the same Tumblr API key can still consume its shared quota.
 
 ## Running with PM2
 

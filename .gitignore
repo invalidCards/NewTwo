@@ -2,3 +2,5 @@ node_modules/
 .env
 .env.*
 !.env.example
+.newtwo-state.json
+.newtwo-state.json.*.tmp

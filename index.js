@@ -3,6 +3,8 @@
 const tumblr = require('tumblr.js');
 const { createRoutines, scheduleRoutine } = require('./routines');
 const { createLogger } = require('./logger');
+const { createState } = require('./state');
+const { createRateLimitedClient } = require('./rate-limit');
 
 const POSTS_PER_DAY = 125;
 const POST_INTERVAL = 24 * 60 * 60 * 1000 / POSTS_PER_DAY;
@@ -27,8 +29,9 @@ function main(env = process.env, logger = createLogger()) {
     Object.entries(variables).map(([key, name]) => [key, env[name]])
   );
   const blog = env.TUMBLR_BLOG || 'invalidcards.tumblr.com';
-  const client = tumblr.createClient(credentials);
-  const routines = createRoutines(client, blog, { logger });
+  const state = createState(blog, '.newtwo-state.json');
+  const client = createRateLimitedClient(tumblr.createClient(credentials), state, { logger });
+  const routines = createRoutines(client, blog, { logger, state });
   const lock = { running: false };
   scheduleRoutine('Publish draft', routines.publishOldestDraft, POST_INTERVAL, { lock, logger });
   scheduleRoutine('Move queue to drafts', routines.draftFirstQueuePage, QUEUE_INTERVAL, { lock, logger });

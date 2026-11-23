@@ -16,7 +16,7 @@ test('walks every draft page and publishes oldest first using string IDs', async
       calls.push([blog, options]);
       return { posts: options.before_id ? [draft(80), draft(79)] : first };
     },
-    async getRequest() { return { content: [] }; },
+    async getRequest() { return { content: [], state: 'draft' }; },
     async editPost(blog, id, options) { calls.push([blog, { id, state: options.state }]); },
   };
   const routines = createRoutines(client, 'example.tumblr.com', { delay: async () => {}, logger: silent });
@@ -38,7 +38,7 @@ test('reports draft scanning progress and completion without logging cached publ
       const size = pages <= 100 ? 20 : 1;
       return { posts: Array.from({ length: size }, (_, i) => draft(10000 - (pages - 1) * 20 - i)) };
     },
-    async getRequest() { return { content: [] }; },
+    async getRequest() { return { content: [], state: 'draft' }; },
     async editPost() {},
   };
   const logger = { ...silent, log: (message) => messages.push(message) };
@@ -48,14 +48,14 @@ test('reports draft scanning progress and completion without logging cached publ
   assert.deepEqual(messages, [
     'Scanning drafts for the oldest posts...',
     'Scanned 100 draft pages so far.',
-    'Finished scanning drafts: 101 pages checked, 21 drafts cached.',
+    'Finished scanning drafts: 101 pages checked, 2001 drafts indexed.',
     'Published draft 8000.',
     'Published draft 8001.',
   ]);
 });
 
-for (const [total, retained] of [[65, 25], [40, 20]]) {
-  test(`retains the oldest drafts from ${total} posts and reloads when exhausted`, async () => {
+for (const total of [65, 40]) {
+  test(`indexes ${total} posts oldest first and reloads when exhausted`, async () => {
     let drafts = Array.from({ length: total }, (_, i) => draft(total - i));
     let scans = 0;
     const published = [];
@@ -64,18 +64,18 @@ for (const [total, retained] of [[65, 25], [40, 20]]) {
         if (!options.before_id) scans++;
         return { posts: drafts.filter((post) => !options.before_id || Number(post.id_string) < Number(options.before_id)).slice(0, 20) };
       },
-      async getRequest() { return { content: [] }; },
+      async getRequest() { return { content: [], state: 'draft' }; },
       async editPost(blog, id) {
         published.push(Number(id));
         drafts = drafts.filter((post) => post.id_string !== id);
       },
     };
     const routines = createRoutines(client, 'blog', { delay: async () => {}, logger: silent });
-    for (let i = 0; i < retained; i++) await routines.publishOldestDraft();
+    for (let i = 0; i < total; i++) await routines.publishOldestDraft();
     assert.equal(scans, 1);
     await routines.publishOldestDraft();
     assert.equal(scans, 2);
-    assert.deepEqual(published, Array.from({ length: retained + 1 }, (_, i) => i + 1));
+    assert.deepEqual(published, Array.from({ length: total }, (_, i) => i + 1));
   });
 }
 
@@ -92,7 +92,7 @@ test('a failed publish skips that post without reloading the remaining drafts', 
   const attempted = [];
   const client = {
     async blogDrafts() { scans++; return { posts: [draft(3), draft(2), draft(1)] }; },
-    async getRequest() { return { content: [] }; },
+    async getRequest() { return { content: [], state: 'draft' }; },
     async editPost(blog, id) {
       attempted.push(id);
       if (id === '1') throw new Error('failed');
@@ -124,7 +124,7 @@ test('NPF edit passes fetched content and reblog details through the real v5 cli
 });
 
 test('rejects legacy non-text posts without calling a legacy endpoint', async () => {
-  const client = { getRequest: () => assert.fail('unexpected request') };
+  const client = { getRequest: async () => ({ state: 'draft' }) };
   await assert.rejects(
     changeState(client, 'blog', { id_string: '1', type: 'photo', is_blocks_post_format: false }, 'published'),
     /legacy photo post/
@@ -132,7 +132,7 @@ test('rejects legacy non-text posts without calling a legacy endpoint', async ()
 });
 
 test('does not edit NPF posts if editable content is missing', async () => {
-  const client = { getRequest: async () => ({}), editPost: () => assert.fail('unexpected edit') };
+  const client = { getRequest: async () => ({ state: 'draft' }), editPost: () => assert.fail('unexpected edit') };
   await assert.rejects(changeState(client, 'blog', { id_string: '1', is_blocks_post_format: true }, 'published'), /no editable content/);
 });
 
@@ -142,7 +142,7 @@ test('queue moves preserve the oldest cached drafts even if a later edit fails',
   const client = {
     async blogDrafts() { scans++; return { posts: [draft(2), draft(1)] }; },
     async blogQueue() { return { posts: [draft(3), draft(4)] }; },
-    async getRequest() { return { content: [] }; },
+    async getRequest() { return { content: [], state: 'draft' }; },
     async editPost(blog, id, options) {
       if (id === '4') throw new Error('failed');
       if (options.state === 'published') published.push(id);
