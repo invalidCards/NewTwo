@@ -37,13 +37,17 @@ function createRoutines(client, blog, { delay = wait, logger = console } = {}) {
     let found = [];
     const cursors = new Set();
     let before;
+    let pages = 0;
+    logger.log('Scanning drafts for the oldest posts...');
     while (true) {
       await delay(100);
       const { posts } = await client.blogDrafts(blog, before ? { before_id: before } : {});
+      pages++;
       if (posts.length < DRAFT_PAGE_SIZE) {
         found.push(...posts);
         break;
       }
+      if (pages % 100 === 0) logger.log(`Scanned ${pages} draft pages so far.`);
       // Each full page is older than the previous one. Retain only the most
       // recently fetched full page and the final partial page, rather than every draft.
       found = posts;
@@ -51,6 +55,7 @@ function createRoutines(client, blog, { delay = wait, logger = console } = {}) {
       if (cursors.has(before)) throw new Error(`Draft pagination repeated cursor ${before}`);
       cursors.add(before);
     }
+    logger.log(`Finished scanning drafts: ${pages} pages checked, ${found.length} drafts cached.`);
     return found.reverse();
   }
 

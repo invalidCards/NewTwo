@@ -29,6 +29,31 @@ test('walks every draft page and publishes oldest first using string IDs', async
   ]);
 });
 
+test('reports draft scanning progress and completion without logging cached publishes', async () => {
+  let pages = 0;
+  const messages = [];
+  const client = {
+    async blogDrafts() {
+      pages++;
+      const size = pages <= 100 ? 20 : 1;
+      return { posts: Array.from({ length: size }, (_, i) => draft(10000 - (pages - 1) * 20 - i)) };
+    },
+    async getRequest() { return { content: [] }; },
+    async editPost() {},
+  };
+  const logger = { ...silent, log: (message) => messages.push(message) };
+  const routines = createRoutines(client, 'blog', { delay: async () => {}, logger });
+  await routines.publishOldestDraft();
+  await routines.publishOldestDraft();
+  assert.deepEqual(messages, [
+    'Scanning drafts for the oldest posts...',
+    'Scanned 100 draft pages so far.',
+    'Finished scanning drafts: 101 pages checked, 21 drafts cached.',
+    'Published draft 8000.',
+    'Published draft 8001.',
+  ]);
+});
+
 for (const [total, retained] of [[65, 25], [40, 20]]) {
   test(`retains the oldest drafts from ${total} posts and reloads when exhausted`, async () => {
     let drafts = Array.from({ length: total }, (_, i) => draft(total - i));
