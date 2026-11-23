@@ -1,0 +1,19 @@
+{
+  "name": "qtwo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "author": "invalidCards",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "tumblr.js": "^5.0.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
